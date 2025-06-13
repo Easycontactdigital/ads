@@ -579,10 +579,64 @@ def display_creative_generation():
                 mime="text/csv"
             )
 
+def check_password():
+    """Returns True if the user has entered the correct password."""
+    def password_entered():
+        """Checks whether a password entered by the user is correct."""
+        # Check if password exists in session state
+        if "password" in st.session_state and st.session_state["password"]:
+            if st.session_state["password"] == "adspassword123":  # Change this!
+                st.session_state["password_correct"] = True
+                del st.session_state["password"]  # Don't store password
+            else:
+                st.session_state["password_correct"] = False
+        else:
+            st.session_state["password_correct"] = False
+
+    if "password_correct" not in st.session_state:
+        # First run, show input for password
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.text_input(
+                "🔐 Enter Password", type="password", on_change=password_entered, key="password"
+            )
+        with col2:
+            st.write("")  # Empty space for alignment
+            if st.button("Enter", type="primary"):
+                if "password" in st.session_state:
+                    password_entered()
+                else:
+                    st.error("Please enter a password first")
+        st.write("*Please enter the password to access this app.*")
+        return False
+    elif not st.session_state["password_correct"]:
+        # Password not correct, show input + error
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.text_input(
+                "🔐 Enter Password", type="password", on_change=password_entered, key="password"
+            )
+        with col2:
+            st.write("")  # Empty space for alignment
+            if st.button("Enter", type="primary"):
+                if "password" in st.session_state:
+                    password_entered()
+                else:
+                    st.error("Please enter a password first")
+        st.error("😞 Password incorrect")
+        return False
+    else:
+        # Password correct
+        return True
+
 def main():
     """Main application function."""
     st.title("🎯 Google Ads Creative Generator")
     st.markdown("AI-powered creative generation based on campaign performance data")
+    
+    # Check password first
+    if not check_password():
+        return
     
     initialize_session_state()
     
