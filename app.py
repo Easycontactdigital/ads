@@ -439,16 +439,23 @@ def display_creative_generation():
     col1, col2 = st.columns([2, 1])
     
     with col1:
+        # Get suggested values from insights if available
+        suggested_audience = ""
+        suggested_brief = ""
+        if st.session_state.creative_insights:
+            suggested_audience = st.session_state.creative_insights.get('suggested_target_audience', '')
+            suggested_brief = st.session_state.creative_insights.get('suggested_brief', '')
+        
         target_audience = st.text_input(
             "🎯 Target Audience",
-            value="Small business owners looking for van insurance",
-            help="Describe your target audience"
+            value=suggested_audience if suggested_audience else "Small business owners looking for van insurance",
+            help="Describe your target audience (auto-filled from insights)"
         )
         
         additional_context = st.text_area(
             "📝 Additional Context/Brief",
-            value="Focus on competitive pricing, fast quotes, and comprehensive coverage",
-            help="Any specific messaging requirements or brand guidelines"
+            value=suggested_brief if suggested_brief else "Focus on competitive pricing, fast quotes, and comprehensive coverage",
+            help="Any specific messaging requirements or brand guidelines (auto-filled from insights)"
         )
         
         use_categories = st.multiselect(
