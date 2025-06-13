@@ -1,3 +1,14 @@
+---
+title: Google Ads Creative Generator
+emoji: 🎯
+colorFrom: blue
+colorTo: purple
+sdk: streamlit
+sdk_version: 1.28.0
+app_file: app.py
+pinned: false
+---
+
 # 🎯 Google Ads Creative Generator
 
 AI-powered creative generation and analysis tool for Google Ads campaigns.
