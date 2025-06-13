@@ -1,20 +1,37 @@
+# 🎯 Google Ads Creative Generator
+
+AI-powered creative generation and analysis tool for Google Ads campaigns.
+
+## Features
+
+- **📊 Campaign Analysis**: Load and analyze campaign asset performance data
+- **🧠 Creative Insights**: AI-powered classification and performance analysis
+- **🎨 Creative Generation**: Generate new headlines and descriptions based on winning patterns
+- **📥 Export Functionality**: Download generated creative assets
+
+## How to Use
+
+1. **Upload Campaign Data**: Add your Google Ads asset performance CSV files to the `data/` directory
+2. **Select Campaign**: Choose a campaign to analyze from the dropdown
+3. **Analyze Performance**: Review asset performance by category (Best, Good, Learning, Low)
+4. **Get AI Insights**: Use AI to classify creative types and identify winning patterns
+5. **Generate New Creative**: Create new headlines and descriptions based on insights
+6. **Export Results**: Download your generated creative assets
+
+## Setup
+
+1. Enter your OpenAI API key in the sidebar
+2. Upload your Google Ads asset performance CSV files
+3. Start analyzing and generating!
+
+## Data Format
+
+The app expects Google Ads Asset Performance Report CSV files with columns:
+- Asset
+- Asset type (Headline/Description)
+- Performance categories (Best, Good, Low, Learning, Unrated)
+- Performance metrics (Impressions, Clicks, CTR, Conversions, etc.)
+
 ---
-title: Ads Generator
-emoji: 🚀
-colorFrom: red
-colorTo: red
-sdk: docker
-app_port: 8501
-tags:
-- streamlit
-pinned: false
-short_description: ads generator
-license: apache-2.0
----
 
-# Welcome to Streamlit!
-
-Edit `/src/streamlit_app.py` to customize this app to your heart's desire. :heart:
-
-If you have any questions, checkout our [documentation](https://docs.streamlit.io) and [community
-forums](https://discuss.streamlit.io).
+*Built with Streamlit and OpenAI GPT-4* 
