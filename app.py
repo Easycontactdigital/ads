@@ -581,49 +581,34 @@ def display_creative_generation():
 
 def check_password():
     """Returns True if the user has entered the correct password."""
-    def password_entered():
-        """Checks whether a password entered by the user is correct."""
-        # Check if password exists in session state
-        if "password" in st.session_state and st.session_state["password"]:
-            if st.session_state["password"] == "adspassword123":  # Change this!
-                st.session_state["password_correct"] = True
-                del st.session_state["password"]  # Don't store password
-            else:
-                st.session_state["password_correct"] = False
-        else:
-            st.session_state["password_correct"] = False
 
     if "password_correct" not in st.session_state:
         # First run, show input for password
+        password_input = st.text_input("🔐 Enter Password", type="password", key="password_input")
         col1, col2 = st.columns([3, 1])
         with col1:
-            st.text_input(
-                "🔐 Enter Password", type="password", on_change=password_entered, key="password"
-            )
+            st.write("*Please enter the password to access this app.*")
         with col2:
-            st.write("")  # Empty space for alignment
             if st.button("Enter", type="primary"):
-                if "password" in st.session_state:
-                    password_entered()
+                if password_input == "adspassword123":
+                    st.session_state["password_correct"] = True
+                    st.rerun()
                 else:
-                    st.error("Please enter a password first")
-        st.write("*Please enter the password to access this app.*")
+                    st.error("😞 Password incorrect")
         return False
     elif not st.session_state["password_correct"]:
         # Password not correct, show input + error
+        password_input = st.text_input("🔐 Enter Password", type="password", key="password_input")
         col1, col2 = st.columns([3, 1])
         with col1:
-            st.text_input(
-                "🔐 Enter Password", type="password", on_change=password_entered, key="password"
-            )
+            st.error("😞 Password incorrect")
         with col2:
-            st.write("")  # Empty space for alignment
             if st.button("Enter", type="primary"):
-                if "password" in st.session_state:
-                    password_entered()
+                if password_input == "adspassword123":
+                    st.session_state["password_correct"] = True
+                    st.rerun()
                 else:
-                    st.error("Please enter a password first")
-        st.error("😞 Password incorrect")
+                    st.error("😞 Password incorrect")
         return False
     else:
         # Password correct
