@@ -1,0 +1,925 @@
+{
+  "discovery_timestamp": "2025-06-16T12:35:08.334518",
+  "master_account": {
+    "id": "4590153348",
+    "name": "MCC-MKPL-Health",
+    "level": 0,
+    "manager": true,
+    "currency": "USD",
+    "status": "ENABLED",
+    "test_account": false,
+    "time_zone": "America/New_York"
+  },
+  "complete_structure": {
+    "9820340488": {
+      "manager_info": {
+        "id": "9820340488",
+        "name": "MCC-DollarGeek-Health",
+        "level": 1,
+        "manager": true,
+        "currency": "USD",
+        "status": "ENABLED",
+        "test_account": false,
+        "time_zone": "America/New_York"
+      },
+      "client_accounts": [
+        {
+          "id": "6507706715",
+          "name": "DollarGeek - Health - Hair Loss",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "8800973695",
+          "name": "DollarGeek - Health - Hearing Aids",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "9335389050",
+          "name": "DollarGeek - Health - Weight Loss",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        }
+      ],
+      "sub_managers": {}
+    },
+    "3412724819": {
+      "manager_info": {
+        "id": "3412724819",
+        "name": "MCC-EXP-Health",
+        "level": 1,
+        "manager": true,
+        "currency": "USD",
+        "status": "ENABLED",
+        "test_account": false,
+        "time_zone": "America/New_York"
+      },
+      "client_accounts": [
+        {
+          "id": "8583593997",
+          "name": "Expertise Health - Weight Loss",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "8684278017",
+          "name": "Expertise Health - Hearing Aids",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "9364480611",
+          "name": "Expertise Health - Weight Loss Meds",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        }
+      ],
+      "sub_managers": {}
+    },
+    "4841150580": {
+      "manager_info": {
+        "id": "4841150580",
+        "name": "MCC-Forbes-Health",
+        "level": 1,
+        "manager": true,
+        "currency": "USD",
+        "status": "ENABLED",
+        "test_account": false,
+        "time_zone": "America/New_York"
+      },
+      "client_accounts": [
+        {
+          "id": "1036738562",
+          "name": "Forbes Health - Hair Loss",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "1254420980",
+          "name": "Forbes Health - Supplements",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "CANCELED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "1453496343",
+          "name": "Forbes Health - Acne Treatment",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "1471884705",
+          "name": "Forbes Health - Pre-work out Supplements",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "CANCELED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "1588171637",
+          "name": "Forbes Health - Lasik Eye Surgery",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "2040236390",
+          "name": "Forbes Health - Birth Control",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "2374338390",
+          "name": "Forbes Health - Braces",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "2455898972",
+          "name": "Forbes Health - Dental Implants",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "2870970929",
+          "name": "Forbes Health - Personal Training Certification",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "2895907901",
+          "name": "Forbes Health - Rehab and Addiction",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "3144749603",
+          "name": "Forbes Health - Hearing Aids",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "3345371121",
+          "name": "Forbes Health - Weight Loss Medication UK",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "3429225388",
+          "name": "Forbes Health - TRT Treatment",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "3438010888",
+          "name": "Forbes Health - Prenatal Vitamins",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "3592598137",
+          "name": "Forbes Health - Anxiety and Depression Medication",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "3829015678",
+          "name": "Forbes Health - Senior Care",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "3849103286",
+          "name": "Forbes Health - Laser Hair Removal",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "4046521115",
+          "name": "Forbes Health - Assisted Living",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "4683625295",
+          "name": "Forbes Health - Online Dieticians",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "5411590874",
+          "name": "Forbes Health - Weight Loss",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "5593023144",
+          "name": "Forbes Health - Cold Plunges",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "5665245596",
+          "name": "Forbes Health - Green Powders",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "5718838456",
+          "name": "Forbes Health - Teeth Whitening",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "CANCELED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "5917915915",
+          "name": "Forbes Health - Child Care",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "6249228603",
+          "name": "Forbes Health - HRT Treatment",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "6351853229",
+          "name": "",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "CLOSED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "6631047839",
+          "name": "ZZ Forbes Health - CBD",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "CANCELED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "7289482109",
+          "name": "Forbes Health - Anti Aging",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "7457773791",
+          "name": "Forbes Health - Online Therapy",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "7705418458",
+          "name": "Forbes Health - ED Treatments",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "7852825446",
+          "name": "Forbes Health - Life Coach Certifications",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "7997912472",
+          "name": "Forbes Health - Medical Alert Systems",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "8070862754",
+          "name": "Forbes Health - DNA Testing",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "8408258348",
+          "name": "Forbes Health - Weight Loss Medication",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "9073110091",
+          "name": "Forbes Health - Pet Supplements",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "9116748878",
+          "name": "Forbes Health - Collagen",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "CANCELED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "9450392646",
+          "name": "Forbes Health - Oxygen Concentrators",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "9555198245",
+          "name": "Forbes Health - Weight Loss Medications",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "CANCELED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "9639518048",
+          "name": "Forbes Health - Walk-In Tubs",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "9740199782",
+          "name": "",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "CLOSED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "9983031309",
+          "name": "Forbes Health - Probiotics Supplements",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "CANCELED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "1035572593",
+          "name": "Forbes Health - Meal Delivery US",
+          "level": 2,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "1990175590",
+          "name": "Forbes Health - Dating DE",
+          "level": 2,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "2104434207",
+          "name": "Forbes Health - Dating UK",
+          "level": 2,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "3164426384",
+          "name": "Forbes Health - Meal Delivery UK",
+          "level": 2,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "3758522470",
+          "name": "Forbes Health - Dating",
+          "level": 2,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "4337173458",
+          "name": "Forbes Health - Hair Loss UK",
+          "level": 2,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "4910880842",
+          "name": "Forbes Health - Meal Delivery AU",
+          "level": 2,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "7173595076",
+          "name": "Forbes Health - Dating Canada",
+          "level": 2,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "8233548495",
+          "name": "Forbes Health - Meal Delivery CA",
+          "level": 2,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "9142771439",
+          "name": "Forbes Health - Dating AU",
+          "level": 2,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        }
+      ],
+      "sub_managers": {
+        "3063381078": {
+          "manager_info": {
+            "id": "3063381078",
+            "name": "Forbes Health - Hair Loss MCC",
+            "level": 1,
+            "manager": true,
+            "currency": "USD",
+            "status": "ENABLED",
+            "test_account": false,
+            "time_zone": "America/New_York"
+          },
+          "client_accounts": [
+            {
+              "id": "4337173458",
+              "name": "Forbes Health - Hair Loss UK",
+              "level": 1,
+              "manager": false,
+              "currency": "USD",
+              "status": "ENABLED",
+              "test_account": false,
+              "time_zone": "America/New_York"
+            }
+          ],
+          "sub_managers": {}
+        },
+        "6378029256": {
+          "manager_info": {
+            "id": "6378029256",
+            "name": "Forbes Health - Meal Delivery MCC",
+            "level": 1,
+            "manager": true,
+            "currency": "USD",
+            "status": "ENABLED",
+            "test_account": false,
+            "time_zone": "America/New_York"
+          },
+          "client_accounts": [
+            {
+              "id": "1035572593",
+              "name": "Forbes Health - Meal Delivery US",
+              "level": 1,
+              "manager": false,
+              "currency": "USD",
+              "status": "ENABLED",
+              "test_account": false,
+              "time_zone": "America/New_York"
+            },
+            {
+              "id": "3164426384",
+              "name": "Forbes Health - Meal Delivery UK",
+              "level": 1,
+              "manager": false,
+              "currency": "USD",
+              "status": "ENABLED",
+              "test_account": false,
+              "time_zone": "America/New_York"
+            },
+            {
+              "id": "4910880842",
+              "name": "Forbes Health - Meal Delivery AU",
+              "level": 1,
+              "manager": false,
+              "currency": "USD",
+              "status": "ENABLED",
+              "test_account": false,
+              "time_zone": "America/New_York"
+            },
+            {
+              "id": "8233548495",
+              "name": "Forbes Health - Meal Delivery CA",
+              "level": 1,
+              "manager": false,
+              "currency": "USD",
+              "status": "ENABLED",
+              "test_account": false,
+              "time_zone": "America/New_York"
+            }
+          ],
+          "sub_managers": {}
+        },
+        "8306549954": {
+          "manager_info": {
+            "id": "8306549954",
+            "name": "Forbes Health - Dating MCC",
+            "level": 1,
+            "manager": true,
+            "currency": "USD",
+            "status": "ENABLED",
+            "test_account": false,
+            "time_zone": "America/New_York"
+          },
+          "client_accounts": [
+            {
+              "id": "1990175590",
+              "name": "Forbes Health - Dating DE",
+              "level": 1,
+              "manager": false,
+              "currency": "USD",
+              "status": "ENABLED",
+              "test_account": false,
+              "time_zone": "America/New_York"
+            },
+            {
+              "id": "2104434207",
+              "name": "Forbes Health - Dating UK",
+              "level": 1,
+              "manager": false,
+              "currency": "USD",
+              "status": "ENABLED",
+              "test_account": false,
+              "time_zone": "America/New_York"
+            },
+            {
+              "id": "3758522470",
+              "name": "Forbes Health - Dating",
+              "level": 1,
+              "manager": false,
+              "currency": "USD",
+              "status": "ENABLED",
+              "test_account": false,
+              "time_zone": "America/New_York"
+            },
+            {
+              "id": "7173595076",
+              "name": "Forbes Health - Dating Canada",
+              "level": 1,
+              "manager": false,
+              "currency": "USD",
+              "status": "ENABLED",
+              "test_account": false,
+              "time_zone": "America/New_York"
+            },
+            {
+              "id": "9142771439",
+              "name": "Forbes Health - Dating AU",
+              "level": 1,
+              "manager": false,
+              "currency": "USD",
+              "status": "ENABLED",
+              "test_account": false,
+              "time_zone": "America/New_York"
+            }
+          ],
+          "sub_managers": {}
+        }
+      }
+    },
+    "8306549954": {
+      "manager_info": {
+        "id": "8306549954",
+        "name": "Forbes Health - Dating MCC",
+        "level": 2,
+        "manager": true,
+        "currency": "USD",
+        "status": "ENABLED",
+        "test_account": false,
+        "time_zone": "America/New_York"
+      },
+      "client_accounts": [
+        {
+          "id": "1990175590",
+          "name": "Forbes Health - Dating DE",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "2104434207",
+          "name": "Forbes Health - Dating UK",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "3758522470",
+          "name": "Forbes Health - Dating",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "7173595076",
+          "name": "Forbes Health - Dating Canada",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "9142771439",
+          "name": "Forbes Health - Dating AU",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        }
+      ],
+      "sub_managers": {}
+    },
+    "3063381078": {
+      "manager_info": {
+        "id": "3063381078",
+        "name": "Forbes Health - Hair Loss MCC",
+        "level": 2,
+        "manager": true,
+        "currency": "USD",
+        "status": "ENABLED",
+        "test_account": false,
+        "time_zone": "America/New_York"
+      },
+      "client_accounts": [
+        {
+          "id": "4337173458",
+          "name": "Forbes Health - Hair Loss UK",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        }
+      ],
+      "sub_managers": {}
+    },
+    "6378029256": {
+      "manager_info": {
+        "id": "6378029256",
+        "name": "Forbes Health - Meal Delivery MCC",
+        "level": 2,
+        "manager": true,
+        "currency": "USD",
+        "status": "ENABLED",
+        "test_account": false,
+        "time_zone": "America/New_York"
+      },
+      "client_accounts": [
+        {
+          "id": "1035572593",
+          "name": "Forbes Health - Meal Delivery US",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "3164426384",
+          "name": "Forbes Health - Meal Delivery UK",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "4910880842",
+          "name": "Forbes Health - Meal Delivery AU",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        },
+        {
+          "id": "8233548495",
+          "name": "Forbes Health - Meal Delivery CA",
+          "level": 1,
+          "manager": false,
+          "currency": "USD",
+          "status": "ENABLED",
+          "test_account": false,
+          "time_zone": "America/New_York"
+        }
+      ],
+      "sub_managers": {}
+    }
+  },
+  "summary": {
+    "total_managers_explored": 6,
+    "discovery_type": "structure_only"
+  }
+}
