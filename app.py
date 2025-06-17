@@ -132,6 +132,8 @@ def initialize_session_state():
         st.session_state.suggested_target_audience = ''
     if 'suggested_brief' not in st.session_state:
         st.session_state.suggested_brief = ''
+    if 'replacement_recommendations' not in st.session_state:
+        st.session_state.replacement_recommendations = None
 
 def load_google_ads_client():
     """Load Google Ads client and account structure."""
@@ -771,8 +773,79 @@ def display_performance_analysis():
     display_df['Ad Group'] = display_df['ad_group_name']
     display_df['Ad ID'] = display_df['ad_id']
     
-    # Select final columns
-    final_columns = ['Asset', 'Label', 'Asset Impr', 'Impr Share', 'Attr Clicks', 'Attr Conv', 'Attr CTR', 'Attr Cost', 'Ad Group', 'Ad ID']
+    # Calculate Asset Effectiveness Score
+    # Pre-calculate percentiles to avoid index issues
+    filtered_df_reset = filtered_df.reset_index(drop=True)
+    ctr_percentiles = filtered_df_reset['attributed_ctr'].rank(pct=True) * 100
+    conv_percentiles = filtered_df_reset['attributed_conversions'].rank(pct=True) * 100
+    max_impression_share = filtered_df_reset['impression_share'].max()
+    
+    def calculate_effectiveness_score(row):
+        """Calculate a composite effectiveness score (0-100) based on multiple factors."""
+        score = 0
+        
+        # Google performance label (50% of score) - increased weight and scores
+        label_scores = {
+            'Best': 100,
+            'Good': 85,  # Increased from 75 to 85
+            'Learning': 40,  # Decreased from 50 to 40
+            'Pending': 20,   # Decreased from 25 to 20
+            'Low': 0
+        }
+        score += label_scores.get(row['performance_label'], 20) * 0.5  # Increased from 0.4 to 0.5
+        
+        # Impression share (30% of score) - higher is better
+        if max_impression_share > 0:
+            impression_score = (row['impression_share'] / max_impression_share) * 100
+            score += impression_score * 0.3
+        
+        # Use pre-calculated percentiles with proper index
+        idx = row.name
+        if idx < len(ctr_percentiles):
+            score += ctr_percentiles.iloc[idx] * 0.1  # Attributed CTR percentile (10% of score)
+            score += conv_percentiles.iloc[idx] * 0.1  # Attributed conversions percentile (10% of score)
+        
+        return min(100, max(0, score))  # Ensure score is between 0-100
+    
+    # Add effectiveness score using the reset dataframe with error handling
+    try:
+        effectiveness_scores = []
+        for idx, row in filtered_df_reset.iterrows():
+            try:
+                score = calculate_effectiveness_score(row)
+                effectiveness_scores.append(score)
+            except Exception as e:
+                st.warning(f"Error calculating effectiveness score for asset {idx}: {e}")
+                effectiveness_scores.append(0)  # Default to 0 if error
+        
+        display_df['Effectiveness Score'] = effectiveness_scores
+    except Exception as e:
+        st.error(f"Error calculating effectiveness scores: {e}")
+        # Fallback: create default scores
+        display_df['Effectiveness Score'] = [50.0] * len(display_df)
+    
+    # Add effectiveness score threshold slider
+    st.subheader("🎯 Asset Selection Controls")
+    col1, col2 = st.columns([3, 1])
+    
+    with col1:
+        effectiveness_threshold = st.slider(
+            "Asset Effectiveness Threshold (%)",
+            min_value=0,
+            max_value=100,
+            value=50,  # Default to 50% - assets below this are selected
+            step=5,
+            help="Assets with effectiveness scores below this threshold will be automatically selected for replacement"
+        )
+    
+    with col2:
+        st.metric("Assets Below Threshold", len(display_df[display_df['Effectiveness Score'] < effectiveness_threshold]))
+    
+    # Auto-select assets based on threshold
+    display_df['Recommended'] = display_df['Effectiveness Score'] < effectiveness_threshold
+    
+    # Select final columns including effectiveness score
+    final_columns = ['Recommended', 'Asset', 'Label', 'Effectiveness Score', 'Asset Impr', 'Impr Share', 'Attr Clicks', 'Attr Conv', 'Attr CTR', 'Attr Cost', 'Ad Group', 'Ad ID']
     
     # Style the table
     def highlight_performance(row):
@@ -787,42 +860,103 @@ def display_performance_analysis():
     
     styled_df = display_df[final_columns].style.apply(highlight_performance, axis=1)
     
-    st.dataframe(styled_df, use_container_width=True, height=500)
+    # Display editable dataframe with checkboxes
+    edited_df = st.data_editor(
+        display_df[final_columns], 
+        use_container_width=True, 
+        height=500,
+        column_config={
+            "Recommended": st.column_config.CheckboxColumn(
+                "Recommend for Replacement",
+                help="Check to include this asset in replacement recommendations",
+                default=False,
+            ),
+            "Effectiveness Score": st.column_config.NumberColumn(
+                "Effectiveness Score (%)",
+                help="Composite score based on Google label, impression share, CTR, and conversions",
+                format="%.1f%%"
+            )
+        },
+        disabled=["Asset", "Label", "Effectiveness Score", "Asset Impr", "Impr Share", "Attr Clicks", "Attr Conv", "Attr CTR", "Attr Cost", "Ad Group", "Ad ID"]
+    )
     
-    # Asset detail view
+    # Store the edited selection in session state
+    if not edited_df.empty:
+        # Reset indices to ensure alignment and add unique identifiers
+        filtered_df_reset = filtered_df.reset_index(drop=True)
+        edited_df_reset = edited_df.reset_index(drop=True)
+        
+        # Map back to original data with selection using proper indexing
+        selected_for_replacement = []
+        for idx, row in edited_df_reset.iterrows():
+            if row['Recommended'] and idx < len(filtered_df_reset):
+                original_asset = filtered_df_reset.iloc[idx].copy()
+                
+                # Get effectiveness score from the display_df using iloc for safe access
+                effectiveness_score = 0
+                if idx < len(display_df):
+                    try:
+                        effectiveness_score = display_df.iloc[idx]['Effectiveness Score']
+                    except (KeyError, IndexError):
+                        effectiveness_score = 0
+                
+                # Ensure we have all the necessary fields for replacement generation
+                asset_dict = {
+                    'asset_text': original_asset.get('asset_text', ''),
+                    'asset_type': original_asset.get('asset_type', ''),
+                    'performance_label': original_asset.get('performance_label', ''),
+                    'asset_impressions': original_asset.get('asset_impressions', 0),
+                    'attributed_ctr': original_asset.get('attributed_ctr', 0),
+                    'attributed_conversions': original_asset.get('attributed_conversions', 0),
+                    'attributed_cost': original_asset.get('attributed_cost', 0),
+                    'ad_group_name': original_asset.get('ad_group_name', ''),
+                    'ad_group_id': original_asset.get('ad_group_id', ''),
+                    'ad_id': original_asset.get('ad_id', ''),
+                    'ad_name': original_asset.get('ad_name', ''),
+                    'impression_share': original_asset.get('impression_share', 0),
+                    'effectiveness_score': effectiveness_score
+                }
+                selected_for_replacement.append(asset_dict)
+        
+        st.session_state.manually_selected_assets = selected_for_replacement
+        
+        # Show selection summary
+        if selected_for_replacement:
+            st.info(f"✅ {len(selected_for_replacement)} assets selected for replacement")
+    
+    # Asset detail view (collapsible and collapsed by default)
     if len(filtered_df) > 0:
-        st.subheader("🔍 Asset Details")
-        
-        # Create simple asset selector
-        asset_options = []
-        for idx, row in filtered_df.iterrows():
-            short_text = row['asset_text'][:50] + "..." if len(row['asset_text']) > 50 else row['asset_text']
-            asset_options.append(f"{row['asset_type']}: {short_text}")
-        
-        selected_asset_idx = st.selectbox("Select asset for details:", range(len(asset_options)), format_func=lambda x: asset_options[x])
-        
-        if selected_asset_idx is not None:
-            selected_asset = filtered_df.iloc[selected_asset_idx]
+        with st.expander("🔍 Asset Details", expanded=False):
+            # Create simple asset selector
+            asset_options = []
+            for idx, row in filtered_df.iterrows():
+                short_text = row['asset_text'][:50] + "..." if len(row['asset_text']) > 50 else row['asset_text']
+                asset_options.append(f"{row['asset_type']}: {short_text}")
             
-            col1, col2 = st.columns(2)
+            selected_asset_idx = st.selectbox("Select asset for details:", range(len(asset_options)), format_func=lambda x: asset_options[x])
             
-            with col1:
-                st.write("**Asset Information:**")
-                st.write(f"**Text:** {selected_asset['asset_text']}")
-                st.write(f"**Type:** {selected_asset['asset_type']}")
-                st.write(f"**Ad Group:** {selected_asset['ad_group_name']}")
-                st.write(f"**Ad ID:** {selected_asset['ad_id']} ({selected_asset['ad_name']})")
-                st.write(f"**Google Label:** {selected_asset['performance_label']}")
-            
-            with col2:
-                st.write("**Asset Performance:**")
-                st.write(f"**Asset Impressions:** {selected_asset['asset_impressions']:,}")
-                st.write(f"**Impression Share:** {selected_asset['impression_share']:.1%}")
-                st.write("**Attributed Performance:**")
-                st.write(f"**Clicks:** {selected_asset['attributed_clicks']:.1f}")
-                st.write(f"**Conversions:** {selected_asset['attributed_conversions']:.2f}")
-                st.write(f"**CTR:** {selected_asset['attributed_ctr']:.2%}")
-                st.write(f"**Cost:** ${selected_asset['attributed_cost']:.2f}")
+            if selected_asset_idx is not None:
+                selected_asset = filtered_df.iloc[selected_asset_idx]
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.write("**Asset Information:**")
+                    st.write(f"**Text:** {selected_asset['asset_text']}")
+                    st.write(f"**Type:** {selected_asset['asset_type']}")
+                    st.write(f"**Ad Group:** {selected_asset['ad_group_name']}")
+                    st.write(f"**Ad ID:** {selected_asset['ad_id']} ({selected_asset['ad_name']})")
+                    st.write(f"**Google Label:** {selected_asset['performance_label']}")
+                
+                with col2:
+                    st.write("**Asset Performance:**")
+                    st.write(f"**Asset Impressions:** {selected_asset['asset_impressions']:,}")
+                    st.write(f"**Impression Share:** {selected_asset['impression_share']:.1%}")
+                    st.write("**Attributed Performance:**")
+                    st.write(f"**Clicks:** {selected_asset['attributed_clicks']:.1f}")
+                    st.write(f"**Conversions:** {selected_asset['attributed_conversions']:.2f}")
+                    st.write(f"**CTR:** {selected_asset['attributed_ctr']:.2%}")
+                    st.write(f"**Cost:** ${selected_asset['attributed_cost']:.2f}")
     
     # Analysis trigger
     st.subheader("🎯 AI Analysis")
@@ -929,8 +1063,8 @@ def generate_creative_insights(assets_df):
             st.error(f"❌ Error generating creative insights: {e}")
             logger.error(f"Error in generate_creative_insights: {e}")
 
-def generate_new_creatives(target_audience, additional_context):
-    """Generate new creatives based on insights (Step 2)."""
+def identify_assets_for_replacement(target_audience, additional_context, selected_ad_groups=None):
+    """Identify assets that need replacement based on performance criteria (Step 1)."""
     
     if not st.session_state.get('processed_assets') is not None:
         st.error("❌ No processed assets found. Please generate insights first.")
@@ -940,30 +1074,459 @@ def generate_new_creatives(target_audience, additional_context):
         st.error("❌ No creative insights found. Please generate insights first.")
         return
     
-    with st.spinner("✨ Generating new creative variations..."):
+    with st.spinner("🔍 Identifying assets that need replacement..."):
         try:
-            generator = CreativeGenerator(api_key=st.session_state.openai_api_key)
+            # Prepare data grouped by ad group and ad
+            assets_df = pd.DataFrame(st.session_state.processed_assets)
             
-            new_creative = generator.generate_new_creatives_with_insights(
-                asset_data=st.session_state.processed_assets,
-                creative_insights=st.session_state.creative_insights,
-                target_audience=target_audience,
-                additional_context=additional_context,
-                use_categories=['Best', 'Good'],
-                num_headlines=30,
-                num_descriptions=30
-            )
+            # Filter by selected ad groups if specified
+            if selected_ad_groups:
+                assets_df = assets_df[assets_df['ad_group_name'].isin(selected_ad_groups)]
             
-            # Store results in session state
-            st.session_state.generated_creative = new_creative
-            st.session_state.current_page = 'creative_insights'
+            # Calculate campaign-wide performance thresholds for comparison
+            campaign_impression_threshold = assets_df['asset_impressions'].quantile(0.4)  # Bottom 40%
+            campaign_ctr_threshold = assets_df['attributed_ctr'].quantile(0.4)  # Bottom 40% 
+            campaign_conversion_threshold = assets_df['attributed_conversions'].quantile(0.4)  # Bottom 40%
             
-            st.success("✅ New creatives generated!")
+            campaign_avg_impressions = assets_df['asset_impressions'].mean()
+            campaign_avg_ctr = assets_df['attributed_ctr'].mean()
+            campaign_avg_conversions = assets_df['attributed_conversions'].mean()
+            
+            logger.info(f"Campaign thresholds - Impressions: {campaign_impression_threshold:.0f}, CTR: {campaign_ctr_threshold:.2%}, Conversions: {campaign_conversion_threshold:.1f}")
+            
+            # Group assets by ad group and ad for context, but use campaign-wide criteria
+            assets_for_replacement = []
+            
+            for ad_group_name in assets_df['ad_group_name'].unique():
+                ad_group_assets = assets_df[assets_df['ad_group_name'] == ad_group_name]
+                
+                for ad_id in ad_group_assets['ad_id'].unique():
+                    ad_assets = ad_group_assets[ad_group_assets['ad_id'] == ad_id]
+                    ad_name = ad_assets.iloc[0]['ad_name'] if not ad_assets.empty else f"Ad {ad_id}"
+                    
+                    # Start with 'Low' performance labels - these are definitely underperforming
+                    google_underperformers = ad_assets[
+                        ad_assets['performance_category'] == 'Low'
+                    ]
+                    
+                    # Include Learning/Pending assets ONLY with very low impression share (below 3%)
+                    low_impression_share_assets = ad_assets[
+                        (ad_assets['performance_category'].isin(['Learning', 'Pending'])) &
+                        (ad_assets['impression_share'] < 0.03)  # Below 3% impression share
+                    ]
+                    
+                    # Add assets that are significantly underperforming vs campaign averages
+                    campaign_underperformers = ad_assets[
+                        (ad_assets['asset_impressions'] <= campaign_impression_threshold) |
+                        (ad_assets['attributed_ctr'] <= campaign_ctr_threshold) |
+                        (ad_assets['attributed_conversions'] <= campaign_conversion_threshold)
+                    ]
+                    
+                    # Combine all sets (union)
+                    assets_needing_replacement = pd.concat([
+                        google_underperformers, 
+                        low_impression_share_assets,
+                        campaign_underperformers
+                    ]).drop_duplicates()
+                    
+                    # NEVER include 'Best' assets - they're explicitly high performers
+                    # NEVER include 'Good' assets unless they're truly terrible on metrics
+                    assets_needing_replacement = assets_needing_replacement[
+                        ~(assets_needing_replacement['performance_category'] == 'Best')
+                    ]
+                    
+                    # Only include 'Good' assets if they're REALLY bad (bottom 10% on multiple metrics)
+                    good_assets_mask = assets_needing_replacement['performance_category'] == 'Good'
+                    if good_assets_mask.any():
+                        really_bad_goods = assets_needing_replacement[good_assets_mask]
+                        bottom_10_impression = assets_df['asset_impressions'].quantile(0.1)
+                        bottom_10_ctr = assets_df['attributed_ctr'].quantile(0.1) 
+                        bottom_10_conversions = assets_df['attributed_conversions'].quantile(0.1)
+                        
+                        # Only keep 'Good' assets if they're in bottom 10% on at least 2 metrics
+                        really_bad_mask = (
+                            (really_bad_goods['asset_impressions'] <= bottom_10_impression).astype(int) +
+                            (really_bad_goods['attributed_ctr'] <= bottom_10_ctr).astype(int) +
+                            (really_bad_goods['attributed_conversions'] <= bottom_10_conversions).astype(int)
+                        ) >= 2
+                        
+                        # Remove all 'Good' assets, then add back only the really bad ones
+                        assets_needing_replacement = assets_needing_replacement[~good_assets_mask]
+                        if really_bad_mask.any():
+                            assets_needing_replacement = pd.concat([
+                                assets_needing_replacement, 
+                                really_bad_goods[really_bad_mask]
+                            ])
+                    
+                    if not assets_needing_replacement.empty:
+                        logger.info(f"Found {len(assets_needing_replacement)} assets needing replacement in ad {ad_id}")
+                        
+                        # Add replacement reasons for each asset
+                        for _, asset in assets_needing_replacement.iterrows():
+                            reasons = []
+                            
+                            # Primary reason: Google labels
+                            if asset['performance_category'] == 'Low':
+                                reasons.append(f"Google labeled as '{asset['performance_category']}'")
+                            elif asset['performance_category'] in ['Learning', 'Pending'] and asset['impression_share'] < 0.03:
+                                reasons.append(f"Google labeled as '{asset['performance_category']}' with very low impression share ({asset['impression_share']:.1%})")
+                            
+                            # Secondary reasons: low impression share (for non-Google label cases)
+                            elif asset['impression_share'] < 0.03:
+                                reasons.append(f"Very low impression share ({asset['impression_share']:.1%})")
+                            
+                            # Tertiary reasons: campaign-wide performance comparison
+                            if asset['asset_impressions'] <= campaign_impression_threshold:
+                                reasons.append(f"Low impressions ({asset['asset_impressions']:.0f} vs campaign avg {campaign_avg_impressions:.0f})")
+                            if asset['attributed_ctr'] <= campaign_ctr_threshold:
+                                reasons.append(f"Low CTR ({asset['attributed_ctr']:.2%} vs campaign avg {campaign_avg_ctr:.2%})")
+                            if asset['attributed_conversions'] <= campaign_conversion_threshold:
+                                reasons.append(f"Low conversions ({asset['attributed_conversions']:.1f} vs campaign avg {campaign_avg_conversions:.1f})")
+                            
+                            # Special case for 'Good' assets that made it through
+                            if asset['performance_category'] == 'Good':
+                                reasons.append("EXCEPTION: 'Good' asset but bottom 10% on multiple metrics")
+                            
+                            asset_info = asset.to_dict()
+                            asset_info['replacement_reasons'] = '; '.join(reasons) if reasons else "Campaign underperformer"
+                            assets_for_replacement.append(asset_info)
+                            
+                            logger.info(f"  - {asset['asset_type']}: {asset['asset'][:50]}... (Label: {asset['performance_category']}, Reasons: {'; '.join(reasons)})")
+                    else:
+                        logger.info(f"No assets needing replacement found in ad {ad_id}")
+            
+            # Store identified assets in session state
+            st.session_state.assets_for_replacement = assets_for_replacement
+            st.session_state.replacement_target_audience = target_audience
+            st.session_state.replacement_additional_context = additional_context
+            
+            st.success(f"✅ Identified {len(assets_for_replacement)} assets recommended for replacement!")
             st.rerun()
             
         except Exception as e:
-            st.error(f"❌ Error generating new creatives: {e}")
-            logger.error(f"Error in generate_new_creatives: {e}")
+            st.error(f"❌ Error identifying assets for replacement: {e}")
+            logger.error(f"Error in identify_assets_for_replacement: {e}")
+
+def generate_replacement_creatives():
+    """Generate actual replacement recommendations for identified assets (Step 2)."""
+    
+    # Use manually selected assets instead of the old automatic identification
+    if not st.session_state.get('manually_selected_assets'):
+        st.error("❌ No assets selected for replacement. Please select assets using the checkboxes.")
+        return
+    
+    manually_selected = st.session_state.manually_selected_assets
+    target_audience = st.session_state.get('replacement_target_audience', '')
+    additional_context = st.session_state.get('replacement_additional_context', '')
+    
+    # Convert manually selected assets to the expected format
+    assets_for_replacement = []
+    for asset in manually_selected:
+        asset_info = {
+            'asset': asset.get('asset_text', ''),
+            'asset_type': asset.get('asset_type', ''),
+            'performance_category': asset.get('performance_label', ''),
+            'asset_impressions': asset.get('asset_impressions', 0),
+            'attributed_ctr': asset.get('attributed_ctr', 0),
+            'attributed_conversions': asset.get('attributed_conversions', 0),
+            'attributed_cost': asset.get('attributed_cost', 0),
+            'ad_group_name': asset.get('ad_group_name', ''),
+            'ad_id': asset.get('ad_id', ''),
+            'ad_name': asset.get('ad_name', ''),
+            'impression_share': asset.get('impression_share', 0),
+            'effectiveness_score': asset.get('effectiveness_score', 0)
+        }
+        assets_for_replacement.append(asset_info)
+    
+    with st.spinner("🔄 Generating replacement recommendations..."):
+        try:
+            # Group assets by ad for processing
+            assets_by_ad = {}
+            for asset in assets_for_replacement:
+                ad_key = f"{asset['ad_group_name']}_{asset['ad_id']}"
+                if ad_key not in assets_by_ad:
+                    assets_by_ad[ad_key] = {
+                        'ad_group_name': asset['ad_group_name'],
+                        'ad_id': asset['ad_id'],
+                        'ad_name': asset['ad_name'],
+                        'assets': []
+                    }
+                assets_by_ad[ad_key]['assets'].append(asset)
+            
+            replacement_recommendations = []
+            
+            for ad_key, ad_data in assets_by_ad.items():
+                # Get good performers from the same ad group for reference
+                assets_df = pd.DataFrame(st.session_state.processed_assets)
+                ad_group_assets = assets_df[assets_df['ad_group_name'] == ad_data['ad_group_name']]
+                good_performers = ad_group_assets[
+                    ad_group_assets['performance_category'].isin(['Best', 'Good'])
+                ]
+                
+                # Convert assets to the format expected by the replacement function
+                assets_to_replace_list = []
+                for asset in ad_data['assets']:
+                    assets_to_replace_list.append({
+                        'text': asset['asset'],
+                        'type': asset['asset_type'],
+                        'performance_label': asset['performance_category'],
+                        'attributed_conversions': asset['attributed_conversions'],
+                        'attributed_ctr': asset['attributed_ctr']
+                    })
+                
+                good_performers_list = []
+                for _, asset in good_performers.head(10).iterrows():  # Limit to top 10 for context
+                    good_performers_list.append({
+                        'text': asset['asset'],
+                        'type': asset['asset_type'],
+                        'performance_label': asset['performance_category'],
+                        'attributed_conversions': asset['attributed_conversions'],
+                        'attributed_ctr': asset['attributed_ctr']
+                    })
+                
+                replacement_request = generate_asset_replacements(
+                    CreativeGenerator(api_key=st.session_state.openai_api_key),
+                    assets_to_replace_list,
+                    good_performers_list,
+                    ad_data['ad_group_name'],
+                    ad_data['ad_id'],
+                    ad_data['ad_name'],
+                    target_audience,
+                    additional_context,
+                    st.session_state.creative_insights
+                )
+                
+                if replacement_request:
+                    replacement_recommendations.extend(replacement_request)
+            
+            # Store results in session state
+            st.session_state.replacement_recommendations = replacement_recommendations
+            
+            st.success(f"✅ Generated {len(replacement_recommendations)} replacement recommendations!")
+            
+        except Exception as e:
+            st.error(f"❌ Error generating replacement recommendations: {e}")
+            logger.error(f"Error in generate_replacement_creatives: {e}")
+
+def generate_replacements_for_ad(assets_to_replace, good_performers, ad_group_name, ad_id, ad_name, target_audience, additional_context, insights):
+    """Generate specific replacement recommendations for underperforming assets in an ad."""
+    
+    try:
+        generator = CreativeGenerator(api_key=st.session_state.openai_api_key)
+        
+        # Prepare context
+        assets_to_replace_list = []
+        for _, asset in assets_to_replace.iterrows():
+            assets_to_replace_list.append({
+                'text': asset['asset'],
+                'type': asset['asset_type'],
+                'performance_label': asset['performance_category'],
+                'attributed_conversions': asset['attributed_conversions'],
+                'attributed_ctr': asset['attributed_ctr']
+            })
+        
+        good_performers_list = []
+        for _, asset in good_performers.head(10).iterrows():  # Limit to top 10 for context
+            good_performers_list.append({
+                'text': asset['asset'],
+                'type': asset['asset_type'],
+                'performance_label': asset['performance_category'],
+                'attributed_conversions': asset['attributed_conversions'],
+                'attributed_ctr': asset['attributed_ctr']
+            })
+        
+        # Create replacement recommendations
+        replacement_data = generate_asset_replacements(
+            generator,
+            assets_to_replace_list,
+            good_performers_list,
+            ad_group_name,
+            ad_id,
+            ad_name,
+            target_audience,
+            additional_context,
+            insights
+        )
+        
+        return replacement_data
+        
+    except Exception as e:
+        logger.error(f"Error generating replacements for ad {ad_id}: {e}")
+        return []
+
+def generate_asset_replacements(generator, assets_to_replace, good_performers, ad_group_name, ad_id, ad_name, target_audience, additional_context, insights):
+    """Use OpenAI to generate specific asset replacements."""
+    
+    logger.info(f"Generating replacements for {len(assets_to_replace)} assets in ad {ad_id}")
+    
+    if not assets_to_replace:
+        logger.warning("No assets to replace provided")
+        return []
+    
+    prompt = f"""
+    Generate specific replacement recommendations for underperforming Google Ads assets.
+    
+    **CONTEXT:**
+    Ad Group: {ad_group_name}
+    Ad ID: {ad_id}
+    Ad Name: {ad_name}
+    Target Audience: {target_audience}
+    Additional Context: {additional_context}
+    
+    **UNDERPERFORMING ASSETS TO REPLACE:**
+    {chr(10).join([f"• {asset['type']}: '{asset['text']}' (Label: {asset['performance_label']}, Conv: {asset['attributed_conversions']:.2f}, CTR: {asset['attributed_ctr']:.2%})" for asset in assets_to_replace])}
+    
+    **HIGH-PERFORMING REFERENCE ASSETS IN AD GROUP:**
+    {chr(10).join([f"• {asset['type']}: '{asset['text']}' (Label: {asset['performance_label']}, Conv: {asset['attributed_conversions']:.2f}, CTR: {asset['attributed_ctr']:.2%})" for asset in good_performers[:8]])}
+    
+    **CREATIVE INSIGHTS TO APPLY:**
+    Key Insights: {insights.get('key_insights', 'Apply winning patterns')}
+    Winning Value Propositions: {', '.join(insights.get('winning_creative_types', {}).get('value_propositions', []))}
+    Winning CTAs: {', '.join(insights.get('winning_creative_types', {}).get('cta_types', []))}
+    
+    **REQUIREMENTS:**
+    1. Generate ONE replacement for each underperforming asset
+    2. Keep the same asset type (headline for headline, description for description)
+    3. Maintain character limits (30 chars for headlines, 90 for descriptions)
+    4. Apply winning patterns from high-performers and insights
+    5. Provide specific reason for replacement
+    6. Estimate expected performance improvement
+    
+    Return as JSON object with this exact format:
+    {{
+        "replacements": [
+            {{
+                "ad_group_name": "{ad_group_name}",
+                "ad_id": "{ad_id}",
+                "ad_name": "{ad_name}",
+                "current_asset": "exact current text",
+                "replacement_asset": "new replacement text",
+                "asset_type": "Headline or Description",
+                "current_performance_label": "current label",
+                "reason_for_replacement": "why this asset needs replacement",
+                "replacement_strategy": "what approach was used for replacement",
+                "expected_improvement": "what improvement is expected"
+            }}
+        ]
+    }}
+    
+    Return only valid JSON, no additional text.
+    """
+    
+    try:
+        logger.info(f"Making OpenAI API call for ad {ad_id}...")
+        logger.info(f"Prompt length: {len(prompt)} characters")
+        
+        # Test the OpenAI client first with a simple call
+        try:
+            test_response = generator.client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": "Reply with just the word 'test'"}],
+                max_tokens=10
+            )
+            logger.info(f"Test call successful: {test_response.choices[0].message.content}")
+        except Exception as e:
+            logger.error(f"Test call failed: {e}")
+            return []
+        
+        response = generator.client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are an expert Google Ads optimizer who creates targeted asset replacements based on performance data and insights. ONLY recommend replacements for clearly underperforming assets."},
+                {"role": "user", "content": prompt}
+            ],
+            response_format={"type": "json_object"}
+        )
+        
+        logger.info("Received response from OpenAI")
+        
+        import json
+        response_content = response.choices[0].message.content
+        
+        logger.info(f"Response received with {len(response_content) if response_content else 0} characters")
+        
+        if not response_content or response_content.strip() == "":
+            logger.error("Empty response from OpenAI")
+            logger.error(f"Full response: {response}")
+            logger.error(f"Response choices: {response.choices}")
+            logger.error(f"Message content: '{response.choices[0].message.content}'" if response.choices else "No choices")
+            return []
+        
+        logger.info(f"Response content preview: {response_content[:200]}...")
+        
+        try:
+            result = json.loads(response_content)
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON decode error: {e}, Content: {response_content}")
+            return []
+        
+        # Handle both array and object responses
+        if isinstance(result, dict):
+            if 'replacements' in result:
+                replacements = result['replacements']
+                # Ensure it's a list
+                if isinstance(replacements, list):
+                    return replacements
+                elif isinstance(replacements, dict):
+                    return [replacements]  # Single replacement as dict
+                else:
+                    logger.warning(f"Unexpected replacements format: {replacements}")
+                    return []
+            else:
+                # Single replacement object
+                return [result]
+        elif isinstance(result, list):
+            return result
+        else:
+            logger.warning(f"Unexpected response format: {result}")
+            return []
+            
+    except Exception as e:
+        logger.error(f"Error calling OpenAI for replacements: {e}")
+        
+        # Try a simpler fallback approach
+        logger.info("Attempting simpler fallback prompt...")
+        try:
+            simple_prompt = f"""Create 1 replacement for this underperforming Google Ads asset:
+
+Asset: "{assets_to_replace[0]['text']}"
+Type: {assets_to_replace[0]['type']}
+Current Performance: {assets_to_replace[0]['performance_label']}
+
+Target Audience: {target_audience}
+
+Return as JSON:
+{{
+    "replacements": [{{
+        "current_asset": "{assets_to_replace[0]['text']}",
+        "replacement_asset": "new improved version",
+        "asset_type": "{assets_to_replace[0]['type']}",
+        "reason_for_replacement": "reason",
+        "expected_improvement": "expected improvement"
+    }}]
+}}"""
+
+            simple_response = generator.client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": "You are a Google Ads copywriter. Return only valid JSON."},
+                    {"role": "user", "content": simple_prompt}
+                ],
+                response_format={"type": "json_object"},
+                max_tokens=500
+            )
+            
+            simple_content = simple_response.choices[0].message.content
+            if simple_content:
+                logger.info("Fallback approach succeeded")
+                result = json.loads(simple_content)
+                if 'replacements' in result and isinstance(result['replacements'], list):
+                    return result['replacements']
+            
+        except Exception as fallback_error:
+            logger.error(f"Fallback approach also failed: {fallback_error}")
+        
+        return []
 
 def display_creative_insights_section():
     """Display creative insights with editable fields for target audience and brief."""
@@ -1065,137 +1628,270 @@ def display_creative_insights_section():
             label_visibility="collapsed"
         )
     
-    # Generate Creatives Button
-    st.subheader("✨ Generate New Creatives")
+    # Step 1: Show manually selected assets
+    st.subheader("🎯 Step 1: Selected Assets for Replacement")
+    st.caption("Assets selected using the checkboxes in the Asset Performance Analysis above")
     
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        st.write("**Ready to generate new creative variations?**")
-        st.caption("Will create 30 headlines and 30 descriptions based on insights above")
+    selected_assets = st.session_state.get('manually_selected_assets', [])
     
-    with col2:
-        if st.button("🚀 Generate Creatives", type="primary", use_container_width=True):
-            if target_audience.strip() and additional_context.strip():
-                generate_new_creatives(target_audience, additional_context)
-            else:
-                st.error("Please fill in both Target Audience and Context & Brief fields")
-
-def display_creative_insights():
-    """Display generated creatives only."""
-    if not st.session_state.generated_creative:
+    if not selected_assets:
+        st.info("📝 No assets selected yet. Please go back to the Asset Performance Analysis table and check the boxes for assets you want to replace.")
         return
     
-    st.header("✨ Generated Creative Variations")
+    # Convert selected assets to the format expected by the replacement generation
+    assets_for_replacement = []
+    for asset in selected_assets:
+        asset_info = {
+            'asset': asset.get('asset_text', ''),
+            'asset_type': asset.get('asset_type', ''),
+            'performance_category': asset.get('performance_label', ''),
+            'asset_impressions': asset.get('asset_impressions', 0),
+            'attributed_ctr': asset.get('attributed_ctr', 0),
+            'attributed_conversions': asset.get('attributed_conversions', 0),
+            'ad_group_name': asset.get('ad_group_name', ''),
+            'ad_id': asset.get('ad_id', ''),
+            'ad_name': asset.get('ad_name', ''),
+            'impression_share': asset.get('impression_share', 0),
+            'replacement_reasons': f"Manually selected for replacement"  # Simple reason since user selected
+        }
+        assets_for_replacement.append(asset_info)
     
-    creative = st.session_state.generated_creative
+    # Store in session state for compatibility with existing code
+    st.session_state.assets_for_replacement = assets_for_replacement
     
-    # Strategy summary (if available)
-    if creative.get('strategy_summary'):
-        st.subheader("📋 Creative Strategy")
-        st.write(creative['strategy_summary'])
+    # Step 2: Show selected assets and generate replacements
+    if assets_for_replacement:
+        st.markdown("---")
+        st.subheader("📋 Assets Recommended for Replacement")
+        
+        assets_for_replacement = st.session_state.assets_for_replacement
+        
+        # Create display table
+        display_data = []
+        for asset in assets_for_replacement:
+            display_data.append({
+                'Asset Type': asset['asset_type'],
+                'Asset Text': asset['asset'][:60] + '...' if len(asset['asset']) > 60 else asset['asset'],
+                'Performance Label': asset['performance_category'],
+                'Asset Impressions': f"{asset['asset_impressions']:,}",
+                'Attributed CTR': f"{asset['attributed_ctr']:.2%}",
+                'Attributed Conversions': f"{asset['attributed_conversions']:.1f}",
+                'Replacement Reasons': asset['replacement_reasons'],
+                'Ad Group': asset['ad_group_name'],
+                'Ad ID': asset['ad_id']
+            })
+        
+        # Display the table
+        df_display = pd.DataFrame(display_data)
+        st.dataframe(df_display, use_container_width=True, hide_index=True)
+        
+        # Show summary
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Assets", len(assets_for_replacement))
+        with col2:
+            headline_count = len([a for a in assets_for_replacement if a['asset_type'] == 'Headline'])
+            st.metric("Headlines", headline_count)
+        with col3:
+            description_count = len([a for a in assets_for_replacement if a['asset_type'] == 'Description'])
+            st.metric("Descriptions", description_count)
+        with col4:
+            ad_groups_count = len(set(a['ad_group_name'] for a in assets_for_replacement))
+            st.metric("Ad Groups", ad_groups_count)
+        
+        # Step 2: Generate Replacements
+        st.subheader("🔄 Step 2: Generate Replacement Creatives")
+        st.caption("Now generate specific replacement recommendations for the identified assets")
+        
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.write(f"**Ready to generate {len(assets_for_replacement)} replacement recommendations?**")
+            st.caption("This will use AI to create specific replacement suggestions for each underperforming asset")
+        
+        with col2:
+            if st.button("🚀 Generate Replacements", type="primary", use_container_width=True):
+                generate_replacement_creatives()
     
-    col1, col2 = st.columns(2)
+    # Display replacement recommendations in the same view
+    if st.session_state.get('replacement_recommendations'):
+        st.markdown("---")
+        display_creative_insights()
+
+def display_creative_insights():
+    """Display replacement recommendations."""
+    if not st.session_state.get('replacement_recommendations'):
+        return
+    
+    st.header("🔄 Asset Replacement Recommendations")
+    
+    recommendations = st.session_state.replacement_recommendations
+    
+    if not recommendations:
+        st.info("No replacement recommendations generated yet.")
+        return
+    
+    # Summary metrics
+    col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.subheader("📝 New Headlines")
-        headlines = creative.get('headlines', [])
-        for i, headline in enumerate(headlines, 1):
-            st.write(f"{i}. {headline}")
+        st.metric("Total Replacements", len(recommendations))
     
     with col2:
-        st.subheader("📄 New Descriptions")
-        descriptions = creative.get('descriptions', [])
-        for i, description in enumerate(descriptions, 1):
-            st.write(f"{i}. {description}")
+        ad_groups_count = len(set(r['ad_group_name'] for r in recommendations))
+        st.metric("Ad Groups", ad_groups_count)
     
-    # Character count info (if available)
-    char_counts = creative.get('character_counts', {})
-    if char_counts:
-        st.subheader("📊 Character Count Analysis")
-        col1, col2 = st.columns(2)
-        with col1:
-            avg_headline_chars = char_counts.get('headlines_avg', 'N/A')
-            st.metric("Avg Headline Length", f"{avg_headline_chars:.1f} chars" if isinstance(avg_headline_chars, (int, float)) else avg_headline_chars)
-        with col2:
-            avg_desc_chars = char_counts.get('descriptions_avg', 'N/A')
-            st.metric("Avg Description Length", f"{avg_desc_chars:.1f} chars" if isinstance(avg_desc_chars, (int, float)) else avg_desc_chars)
+    with col3:
+        ads_count = len(set(r['ad_id'] for r in recommendations))
+        st.metric("Ads Affected", ads_count)
+    
+    with col4:
+        headline_count = len([r for r in recommendations if r.get('asset_type') == 'Headline'])
+        st.metric("Headlines", headline_count)
+    
+    # Create a clean table sorted by Ad Group → Ad → Asset
+    st.subheader("📋 Replacement Recommendations")
+    
+    # Prepare data for table with requested column order and simplifications
+    table_data = []
+    for rec in recommendations:
+        # Simplify Asset Type to just H or D
+        asset_type_short = 'H' if rec.get('asset_type', '') == 'Headline' else 'D' if rec.get('asset_type', '') == 'Description' else rec.get('asset_type', '')
+        
+        table_data.append({
+            'Current Asset': rec.get('current_asset', ''),
+            'Replacement Asset': rec.get('replacement_asset', ''),
+            'Reason': rec.get('reason_for_replacement', ''),
+            'Ad Group': rec.get('ad_group_name', ''),
+            'Ad ID': rec.get('ad_id', ''),
+            'Type': asset_type_short,
+            'Current Label': rec.get('current_performance_label', '')
+        })
+    
+    # Create DataFrame and sort
+    df = pd.DataFrame(table_data)
+    if not df.empty:
+        # Sort by Ad Group → Ad ID → Asset Type
+        df = df.sort_values(['Ad Group', 'Ad ID', 'Type'])
+        
+        # Display the table with requested column order
+        st.dataframe(
+            df,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                'Current Asset': st.column_config.TextColumn('Current Asset', width='large'),
+                'Replacement Asset': st.column_config.TextColumn('Replacement Asset', width='large'),
+                'Reason': st.column_config.TextColumn('Reason', width='medium'),
+                'Ad Group': st.column_config.TextColumn('Ad Group', width='medium'),
+                'Ad ID': st.column_config.TextColumn('Ad ID', width='small'),
+                'Type': st.column_config.TextColumn('Type', width='small'),
+                'Current Label': st.column_config.TextColumn('Label', width='small')
+            }
+        )
     
     # Export options
-    st.subheader("📤 Export Creative")
+    st.subheader("📤 Export Recommendations")
     
     col1, col2, col3 = st.columns(3)
     
     with col1:
         if st.button("📄 Export as CSV", use_container_width=True):
-            export_creative_csv(creative)
+            export_replacements_csv(recommendations)
     
     with col2:
         if st.button("📝 Export as Text", use_container_width=True):
-            export_creative_text(creative)
+            export_replacements_text(recommendations)
     
     with col3:
         if st.button("📊 Export Full Report", use_container_width=True):
             if st.session_state.get('creative_insights'):
-                export_full_report(st.session_state.creative_insights, creative)
+                export_replacements_full_report(st.session_state.creative_insights, recommendations)
             else:
                 st.error("No insights available for full report")
 
-def export_creative_csv(creative):
-    """Export creative variations as CSV."""
-    # Create dataframes
-    headlines_df = pd.DataFrame(creative.get('headlines', []), columns=['Headlines'])
-    descriptions_df = pd.DataFrame(creative.get('descriptions', []), columns=['Descriptions'])
+def export_replacements_csv(recommendations):
+    """Export replacement recommendations as CSV."""
     
-    # Combine into one dataframe
-    max_len = max(len(headlines_df), len(descriptions_df))
+    # Create structured dataframe
+    export_data = []
+    for rec in recommendations:
+        export_data.append({
+            'Ad Group': rec.get('ad_group_name', ''),
+            'Ad ID': rec.get('ad_id', ''),
+            'Ad Name': rec.get('ad_name', ''),
+            'Asset Type': rec.get('asset_type', ''),
+            'Current Asset': rec.get('current_asset', ''),
+            'Replacement Asset': rec.get('replacement_asset', ''),
+            'Current Performance': rec.get('current_performance_label', ''),
+            'Reason for Replacement': rec.get('reason_for_replacement', ''),
+            'Replacement Strategy': rec.get('replacement_strategy', ''),
+            'Expected Improvement': rec.get('expected_improvement', '')
+        })
     
-    export_df = pd.DataFrame({
-        'Headlines': headlines_df['Headlines'].tolist() + [''] * (max_len - len(headlines_df)),
-        'Descriptions': descriptions_df['Descriptions'].tolist() + [''] * (max_len - len(descriptions_df))
-    })
-    
-    # Convert to CSV
+    export_df = pd.DataFrame(export_data)
     csv = export_df.to_csv(index=False)
     
     st.download_button(
-        label="📥 Download CSV",
+        label="📥 Download Replacements CSV",
         data=csv,
-        file_name=f"creative_variations_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+        file_name=f"asset_replacements_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
         mime="text/csv"
     )
 
-def export_creative_text(creative):
-    """Export creative variations as text."""
+def export_replacements_text(recommendations):
+    """Export replacement recommendations as text."""
     content = []
-    content.append("GOOGLE ADS CREATIVE VARIATIONS")
-    content.append("=" * 40)
+    content.append("GOOGLE ADS ASSET REPLACEMENT RECOMMENDATIONS")
+    content.append("=" * 50)
     content.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     content.append("")
     
-    content.append("HEADLINES:")
-    content.append("-" * 20)
-    for i, headline in enumerate(creative.get('headlines', []), 1):
-        content.append(f"{i}. {headline}")
+    # Group by ad group
+    from collections import defaultdict
+    grouped_recs = defaultdict(list)
+    for rec in recommendations:
+        grouped_recs[rec['ad_group_name']].append(rec)
     
-    content.append("")
-    content.append("DESCRIPTIONS:")
-    content.append("-" * 20)
-    for i, description in enumerate(creative.get('descriptions', []), 1):
-        content.append(f"{i}. {description}")
+    for ad_group_name, ad_group_recs in grouped_recs.items():
+        content.append(f"AD GROUP: {ad_group_name}")
+        content.append("-" * len(f"AD GROUP: {ad_group_name}"))
+        content.append("")
+        
+        # Group by ad within ad group
+        ad_groups = defaultdict(list)
+        for rec in ad_group_recs:
+            ad_groups[rec['ad_id']].append(rec)
+        
+        for ad_id, ad_recs in ad_groups.items():
+            ad_name = ad_recs[0]['ad_name'] if ad_recs else f"Ad {ad_id}"
+            content.append(f"  AD: {ad_name} (ID: {ad_id})")
+            content.append("")
+            
+            for i, rec in enumerate(ad_recs, 1):
+                content.append(f"    REPLACEMENT {i}:")
+                content.append(f"    Type: {rec.get('asset_type', 'Unknown')}")
+                content.append(f"    Current: {rec.get('current_asset', '')}")
+                content.append(f"    Replace with: {rec.get('replacement_asset', '')}")
+                content.append(f"    Current Performance: {rec.get('current_performance_label', '')}")
+                content.append(f"    Reason: {rec.get('reason_for_replacement', '')}")
+                content.append(f"    Expected Improvement: {rec.get('expected_improvement', '')}")
+                content.append("")
+        
+        content.append("")
     
     text_content = "\n".join(content)
     
     st.download_button(
-        label="📥 Download Text",
+        label="📥 Download Text Report",
         data=text_content,
-        file_name=f"creative_variations_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+        file_name=f"asset_replacements_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
         mime="text/plain"
     )
 
-def export_full_report(insights, creative):
-    """Export full analysis report."""
+def export_replacements_full_report(insights, recommendations):
+    """Export full replacement analysis report."""
     content = []
-    content.append("GOOGLE ADS CREATIVE ANALYSIS REPORT")
+    content.append("GOOGLE ADS REPLACEMENT ANALYSIS REPORT")
     content.append("=" * 50)
     content.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     content.append("")
@@ -1203,40 +1899,82 @@ def export_full_report(insights, creative):
     # Insights section
     content.append("AI CREATIVE INSIGHTS")
     content.append("-" * 30)
-    content.append(f"Target Audience: {insights.get('target_audience', 'Not specified')}")
-    content.append("")
-    content.append(f"Context & Brief: {insights.get('context_brief', 'Not specified')}")
+    content.append(f"Key Insights: {insights.get('key_insights', 'Not specified')}")
     content.append("")
     
-    content.append("Creative Types Identified:")
-    for creative_type in insights.get('creative_types', []):
-        content.append(f"• {creative_type.get('type', 'Unknown')}: {creative_type.get('description', 'No description')}")
-    content.append("")
+    if insights.get('winning_creative_types'):
+        winning_types = insights['winning_creative_types']
+        if winning_types.get('value_propositions'):
+            content.append("Winning Value Propositions:")
+            for vp in winning_types['value_propositions']:
+                content.append(f"• {vp}")
+            content.append("")
+        
+        if winning_types.get('cta_types'):
+            content.append("Winning CTA Types:")
+            for cta in winning_types['cta_types']:
+                content.append(f"• {cta}")
+            content.append("")
     
     content.append("Performance Patterns:")
     for pattern in insights.get('performance_patterns', []):
         content.append(f"• {pattern}")
     content.append("")
     
-    # Creative variations
-    content.append("GENERATED CREATIVE VARIATIONS")
+    # Replacement recommendations summary
+    content.append("REPLACEMENT RECOMMENDATIONS SUMMARY")
     content.append("-" * 40)
+    content.append(f"Total Replacements: {len(recommendations)}")
     
-    content.append("Headlines:")
-    for i, headline in enumerate(creative.get('headlines', []), 1):
-        content.append(f"{i}. {headline}")
+    ad_groups_count = len(set(r['ad_group_name'] for r in recommendations))
+    content.append(f"Ad Groups Affected: {ad_groups_count}")
+    
+    ads_count = len(set(r['ad_id'] for r in recommendations))
+    content.append(f"Ads Affected: {ads_count}")
     content.append("")
     
-    content.append("Descriptions:")
-    for i, description in enumerate(creative.get('descriptions', []), 1):
-        content.append(f"{i}. {description}")
+    # Detailed recommendations
+    content.append("DETAILED REPLACEMENT RECOMMENDATIONS")
+    content.append("-" * 40)
+    
+    # Group by ad group
+    from collections import defaultdict
+    grouped_recs = defaultdict(list)
+    for rec in recommendations:
+        grouped_recs[rec['ad_group_name']].append(rec)
+    
+    for ad_group_name, ad_group_recs in grouped_recs.items():
+        content.append(f"AD GROUP: {ad_group_name}")
+        content.append("-" * len(f"AD GROUP: {ad_group_name}"))
+        content.append("")
+        
+        # Group by ad within ad group
+        ad_groups = defaultdict(list)
+        for rec in ad_group_recs:
+            ad_groups[rec['ad_id']].append(rec)
+        
+        for ad_id, ad_recs in ad_groups.items():
+            ad_name = ad_recs[0]['ad_name'] if ad_recs else f"Ad {ad_id}"
+            content.append(f"  AD: {ad_name} (ID: {ad_id})")
+            content.append("")
+            
+            for i, rec in enumerate(ad_recs, 1):
+                content.append(f"    REPLACEMENT {i} ({rec.get('asset_type', 'Unknown')}):")
+                content.append(f"    Current: {rec.get('current_asset', '')}")
+                content.append(f"    Replace with: {rec.get('replacement_asset', '')}")
+                content.append(f"    Reason: {rec.get('reason_for_replacement', '')}")
+                content.append(f"    Strategy: {rec.get('replacement_strategy', '')}")
+                content.append(f"    Expected Improvement: {rec.get('expected_improvement', '')}")
+                content.append("")
+        
+        content.append("")
     
     report_content = "\n".join(content)
     
     st.download_button(
         label="📥 Download Full Report",
         data=report_content,
-        file_name=f"creative_analysis_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+        file_name=f"replacement_analysis_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
         mime="text/plain"
     )
 
@@ -1304,7 +2042,7 @@ def check_password():
     
     def password_entered():
         """Checks whether a password entered by the user is correct."""
-        if st.session_state["password"] == "adspassword123":
+        if st.session_state["password"] == "ap123":
             st.session_state["password_correct"] = True
             del st.session_state["password"]  # don't store password
         else:
