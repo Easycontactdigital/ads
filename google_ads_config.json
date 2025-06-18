@@ -1,0 +1,56 @@
+{
+  "authentication": {
+    "developer_token": "l4vbGB2wRimz7t-G_rAcrQ",
+    "refresh_token": "1//04fAyjceJ1X_fCgYIARAAGAQSNwF-L9Ir-Kbu_z7LEsh9JEKTkJDyXB9qwwKZkRFYk_t6zAGdNfQNluL3EB_2WRrngbhhGyYybnM",
+    "client_id": "804349867211-5stbpec9rau3rr0e87ij8m408dthr96c.apps.googleusercontent.com",
+    "client_secret": "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",
+    "use_proto_plus": true
+  },
+  "account_hierarchy": {
+    "master_manager": {
+      "id": "6479367604",
+      "name": "Master Adwords Manager account",
+      "role": "login_customer_id",
+      "description": "Top-level manager account that provides access to other accounts"
+    },
+    "target_manager": {
+      "id": "4590153348",
+      "name": "MCC-MKPL-Health",
+      "role": "intermediate_manager",
+      "description": "Manager account that contains client accounts with actual campaigns"
+    }
+  },
+  "working_configuration": {
+    "login_customer_id": "6479367604",
+    "target_customer_id": "2374338390",
+    "note": "Updated to use client account Forbes Health - Braces which has 20 campaigns",
+    "client_account_name": "Forbes Health - Braces"
+  },
+  "discovered_accounts": {
+    "oauth_accessible": [
+      {
+        "id": "6479367604",
+        "name": "Master Adwords Manager account",
+        "type": "manager",
+        "campaigns": 0
+      },
+      {
+        "id": "8072519295",
+        "name": "Unknown (deactivated)",
+        "type": "deactivated",
+        "campaigns": "N/A"
+      }
+    ]
+  },
+  "next_steps": [
+    "Run explore_account_hierarchy.py to find client accounts under MCC-MKPL-Health",
+    "Identify which client account has the most campaign data",
+    "Update target_customer_id to the client account with campaigns",
+    "Test asset and performance data queries"
+  ],
+  "authentication_journey": {
+    "problem": "Multiple authentication methods and account access issues",
+    "solution": "OAuth credentials can access master manager, which can access target manager",
+    "key_insight": "Need login_customer_id for manager hierarchy access"
+  }
+}
