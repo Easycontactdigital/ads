@@ -484,13 +484,15 @@ def get_campaign_assets(campaign_id, days_back=30):
                 ad_data['cost'] = 0
                 ad_data['cpc'] = 0
         
-        # Step 2: Get asset-level impression data
+        # Step 2: Get asset-level impression data (only for currently active assets)
         asset_query = f"""
             SELECT
                 ad_group_ad_asset_view.resource_name,
                 ad_group_ad_asset_view.field_type,
                 ad_group_ad_asset_view.performance_label,
+                ad_group_ad_asset_view.enabled,
                 asset.text_asset.text,
+                asset.creation_date,
                 campaign.name,
                 ad_group.id,
                 ad_group.name,
@@ -498,10 +500,12 @@ def get_campaign_assets(campaign_id, days_back=30):
                 metrics.impressions
             FROM ad_group_ad_asset_view
             WHERE campaign.id = {campaign_id}
-              AND campaign.status != 'REMOVED'
-              AND ad_group.status != 'REMOVED'
-              AND ad_group_ad.status != 'REMOVED'
+              AND campaign.status = 'ENABLED'
+              AND ad_group.status = 'ENABLED'  
+              AND ad_group_ad.status = 'ENABLED'
+              AND ad_group_ad_asset_view.enabled = true
               AND asset.type = 'TEXT'
+              AND metrics.impressions > 0
               AND {date_range}
         """
         
@@ -522,6 +526,15 @@ def get_campaign_assets(campaign_id, days_back=30):
             asset_type = 'Headline' if asset_view.field_type.name == 'HEADLINE' else 'Description'
             performance_label = asset_view.performance_label.name.replace('_', ' ').title()
             
+            # Calculate asset age in days
+            asset_age_days = 0
+            if hasattr(asset, 'creation_date') and asset.creation_date:
+                try:
+                    creation_date = datetime.strptime(asset.creation_date, '%Y-%m-%d')
+                    asset_age_days = (datetime.now() - creation_date).days
+                except (ValueError, AttributeError):
+                    asset_age_days = 0
+            
             ad_key = f"{ad_group.id}_{ad.id}"
             asset_key = f"{asset_text}_{asset_type}_{ad_key}"
             
@@ -535,6 +548,7 @@ def get_campaign_assets(campaign_id, days_back=30):
                     'asset_type': asset_type,
                     'performance_label': performance_label,
                     'asset_impressions': 0,
+                    'asset_age_days': asset_age_days,
                     'ad_key': ad_key
                 }
             
@@ -582,6 +596,7 @@ def get_campaign_assets(campaign_id, days_back=30):
                     # Asset-level data
                     'asset_impressions': asset_info['asset_impressions'],
                     'impression_share': impression_share,
+                    'asset_age_days': asset_info.get('asset_age_days', 0),
                     
                     # Ad-level data
                     'ad_impressions': ad_perf['impressions'],
@@ -773,37 +788,59 @@ def display_performance_analysis():
     display_df['Ad Group'] = display_df['ad_group_name']
     display_df['Ad ID'] = display_df['ad_id']
     
-    # Calculate Asset Effectiveness Score
+    # Calculate Asset Effectiveness Score (simplified - no ad-level metrics)
     # Pre-calculate percentiles to avoid index issues
     filtered_df_reset = filtered_df.reset_index(drop=True)
-    ctr_percentiles = filtered_df_reset['attributed_ctr'].rank(pct=True) * 100
-    conv_percentiles = filtered_df_reset['attributed_conversions'].rank(pct=True) * 100
     max_impression_share = filtered_df_reset['impression_share'].max()
+    max_asset_impressions = filtered_df_reset['asset_impressions'].max()
     
     def calculate_effectiveness_score(row):
-        """Calculate a composite effectiveness score (0-100) based on multiple factors."""
+        """Calculate a restrictive effectiveness score (0-100). Higher scores are GOOD assets that should NOT be replaced."""
         score = 0
         
-        # Google performance label (50% of score) - increased weight and scores
+        # Google performance label (70% of score) - heavily weight Google's judgment
         label_scores = {
-            'Best': 100,
-            'Good': 85,  # Increased from 75 to 85
-            'Learning': 40,  # Decreased from 50 to 40
-            'Pending': 20,   # Decreased from 25 to 20
-            'Low': 0
+            'Best': 100,     # Never replace
+            'Good': 90,      # Almost never replace  
+            'Learning': 50,  # Maybe replace if other factors are poor
+            'Pending': 30,   # Likely replace if impression share is low
+            'Low': 10        # Definitely replace
         }
-        score += label_scores.get(row['performance_label'], 20) * 0.5  # Increased from 0.4 to 0.5
+        base_score = label_scores.get(row['performance_label'], 30)
         
-        # Impression share (30% of score) - higher is better
+        # Age bonus for Learning/Pending assets (protect new assets)
+        asset_age = row.get('asset_age_days', 0)
+        if row['performance_label'] in ['Learning', 'Pending'] and asset_age < 14:  # Less than 2 weeks old
+            base_score += 20  # Boost score to protect new assets
+        elif row['performance_label'] in ['Learning', 'Pending'] and asset_age < 30:  # Less than 1 month old
+            base_score += 10  # Moderate boost for relatively new assets
+        
+        score += min(base_score, 100) * 0.7  # Cap at 100 after age adjustment
+        
+        # Impression share penalty (20% of score) - low impression share reduces score significantly
         if max_impression_share > 0:
-            impression_score = (row['impression_share'] / max_impression_share) * 100
-            score += impression_score * 0.3
+            impression_share_ratio = row['impression_share'] / max_impression_share
+            # Heavy penalty for very low impression share
+            if impression_share_ratio < 0.05:  # Less than 5% of max
+                impression_penalty = 0  # Zero points for very low share
+            elif impression_share_ratio < 0.1:  # Less than 10% of max
+                impression_penalty = 25  # Low points
+            elif impression_share_ratio < 0.2:  # Less than 20% of max
+                impression_penalty = 50  # Medium points
+            else:
+                impression_penalty = 100  # Full points for decent share
+            
+            score += impression_penalty * 0.2
         
-        # Use pre-calculated percentiles with proper index
-        idx = row.name
-        if idx < len(ctr_percentiles):
-            score += ctr_percentiles.iloc[idx] * 0.1  # Attributed CTR percentile (10% of score)
-            score += conv_percentiles.iloc[idx] * 0.1  # Attributed conversions percentile (10% of score)
+        # Asset age protection (10% of score) - newer assets get slight protection
+        if asset_age < 7:  # Less than 1 week old
+            age_bonus = 10
+        elif asset_age < 14:  # Less than 2 weeks old
+            age_bonus = 5
+        else:
+            age_bonus = 0
+        
+        score += age_bonus * 0.1
         
         return min(100, max(0, score))  # Ensure score is between 0-100
     
@@ -833,9 +870,9 @@ def display_performance_analysis():
             "Asset Effectiveness Threshold (%)",
             min_value=0,
             max_value=100,
-            value=50,  # Default to 50% - assets below this are selected
+            value=30,  # Default to 30% - only select truly poor performers
             step=5,
-            help="Assets with effectiveness scores below this threshold will be automatically selected for replacement"
+            help="Assets with effectiveness scores below this threshold will be automatically selected for replacement. Higher scores = better assets that should NOT be replaced."
         )
     
     with col2:
@@ -844,8 +881,11 @@ def display_performance_analysis():
     # Auto-select assets based on threshold
     display_df['Recommended'] = display_df['Effectiveness Score'] < effectiveness_threshold
     
-    # Select final columns including effectiveness score
-    final_columns = ['Recommended', 'Asset', 'Label', 'Effectiveness Score', 'Asset Impr', 'Impr Share', 'Attr Clicks', 'Attr Conv', 'Attr CTR', 'Attr Cost', 'Ad Group', 'Ad ID']
+    # Add asset age for display
+    display_df['Age (Days)'] = filtered_df_reset['asset_age_days'].apply(lambda x: f"{x:.0f}" if x > 0 else "Unknown")
+    
+    # Select final columns including effectiveness score and age
+    final_columns = ['Recommended', 'Asset', 'Label', 'Age (Days)', 'Effectiveness Score', 'Asset Impr', 'Impr Share', 'Attr Clicks', 'Attr Conv', 'Attr CTR', 'Attr Cost', 'Ad Group', 'Ad ID']
     
     # Style the table
     def highlight_performance(row):
@@ -867,13 +907,14 @@ def display_performance_analysis():
         height=500,
         column_config={
             "Recommended": st.column_config.CheckboxColumn(
-                "Recommend for Replacement",
+                "Selected",
                 help="Check to include this asset in replacement recommendations",
                 default=False,
+                width="small"
             ),
             "Effectiveness Score": st.column_config.NumberColumn(
                 "Effectiveness Score (%)",
-                help="Composite score based on Google label, impression share, CTR, and conversions",
+                help="Composite score based on Google label and impression data only",
                 format="%.1f%%"
             )
         },
