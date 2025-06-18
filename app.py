@@ -1042,7 +1042,6 @@ def generate_creative_insights(assets_df):
             st.session_state.insights_generated = True
             
             st.success("✅ Creative insights generated!")
-            st.rerun()
             
         except Exception as e:
             st.error(f"❌ Error generating creative insights: {e}")
@@ -1186,7 +1185,6 @@ def identify_assets_for_replacement(target_audience, additional_context, selecte
             st.session_state.replacement_additional_context = additional_context
             
             st.success(f"✅ Identified {len(assets_for_replacement)} assets recommended for replacement!")
-            st.rerun()
             
         except Exception as e:
             st.error(f"❌ Error identifying assets for replacement: {e}")
