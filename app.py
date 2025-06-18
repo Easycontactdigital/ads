@@ -484,15 +484,13 @@ def get_campaign_assets(campaign_id, days_back=30):
                 ad_data['cost'] = 0
                 ad_data['cpc'] = 0
         
-        # Step 2: Get asset-level impression data (only for currently active assets)
+        # Step 2: Get asset-level impression data
         asset_query = f"""
             SELECT
                 ad_group_ad_asset_view.resource_name,
                 ad_group_ad_asset_view.field_type,
                 ad_group_ad_asset_view.performance_label,
-                ad_group_ad_asset_view.enabled,
                 asset.text_asset.text,
-                asset.creation_date,
                 campaign.name,
                 ad_group.id,
                 ad_group.name,
@@ -500,12 +498,10 @@ def get_campaign_assets(campaign_id, days_back=30):
                 metrics.impressions
             FROM ad_group_ad_asset_view
             WHERE campaign.id = {campaign_id}
-              AND campaign.status = 'ENABLED'
-              AND ad_group.status = 'ENABLED'  
-              AND ad_group_ad.status = 'ENABLED'
-              AND ad_group_ad_asset_view.enabled = true
+              AND campaign.status != 'REMOVED'
+              AND ad_group.status != 'REMOVED'
+              AND ad_group_ad.status != 'REMOVED'
               AND asset.type = 'TEXT'
-              AND metrics.impressions > 0
               AND {date_range}
         """
         
@@ -526,15 +522,6 @@ def get_campaign_assets(campaign_id, days_back=30):
             asset_type = 'Headline' if asset_view.field_type.name == 'HEADLINE' else 'Description'
             performance_label = asset_view.performance_label.name.replace('_', ' ').title()
             
-            # Calculate asset age in days
-            asset_age_days = 0
-            if hasattr(asset, 'creation_date') and asset.creation_date:
-                try:
-                    creation_date = datetime.strptime(asset.creation_date, '%Y-%m-%d')
-                    asset_age_days = (datetime.now() - creation_date).days
-                except (ValueError, AttributeError):
-                    asset_age_days = 0
-            
             ad_key = f"{ad_group.id}_{ad.id}"
             asset_key = f"{asset_text}_{asset_type}_{ad_key}"
             
@@ -548,7 +535,6 @@ def get_campaign_assets(campaign_id, days_back=30):
                     'asset_type': asset_type,
                     'performance_label': performance_label,
                     'asset_impressions': 0,
-                    'asset_age_days': asset_age_days,
                     'ad_key': ad_key
                 }
             
@@ -596,7 +582,6 @@ def get_campaign_assets(campaign_id, days_back=30):
                     # Asset-level data
                     'asset_impressions': asset_info['asset_impressions'],
                     'impression_share': impression_share,
-                    'asset_age_days': asset_info.get('asset_age_days', 0),
                     
                     # Ad-level data
                     'ad_impressions': ad_perf['impressions'],
@@ -788,78 +773,45 @@ def display_performance_analysis():
     display_df['Ad Group'] = display_df['ad_group_name']
     display_df['Ad ID'] = display_df['ad_id']
     
-    # Calculate Asset Effectiveness Score (simplified - no ad-level metrics)
-    # Pre-calculate percentiles to avoid index issues
-    filtered_df_reset = filtered_df.reset_index(drop=True)
-    max_impression_share = filtered_df_reset['impression_share'].max()
-    max_asset_impressions = filtered_df_reset['asset_impressions'].max()
-    
+    # Calculate Asset Effectiveness Score
     def calculate_effectiveness_score(row):
-        """Calculate a restrictive effectiveness score (0-100). Higher scores are GOOD assets that should NOT be replaced."""
+        """Calculate a composite effectiveness score (0-100) based on multiple factors."""
         score = 0
         
-        # Google performance label (70% of score) - heavily weight Google's judgment
+        # Google performance label (40% of score)
         label_scores = {
-            'Best': 100,     # Never replace
-            'Good': 90,      # Almost never replace  
-            'Learning': 50,  # Maybe replace if other factors are poor
-            'Pending': 30,   # Likely replace if impression share is low
-            'Low': 10        # Definitely replace
+            'Best': 100,
+            'Good': 75, 
+            'Learning': 50,
+            'Pending': 25,
+            'Low': 0
         }
-        base_score = label_scores.get(row['performance_label'], 30)
+        score += label_scores.get(row['performance_label'], 25) * 0.4
         
-        # Age bonus for Learning/Pending assets (protect new assets)
-        asset_age = row.get('asset_age_days', 0)
-        if row['performance_label'] in ['Learning', 'Pending'] and asset_age < 14:  # Less than 2 weeks old
-            base_score += 20  # Boost score to protect new assets
-        elif row['performance_label'] in ['Learning', 'Pending'] and asset_age < 30:  # Less than 1 month old
-            base_score += 10  # Moderate boost for relatively new assets
-        
-        score += min(base_score, 100) * 0.7  # Cap at 100 after age adjustment
-        
-        # Impression share penalty (20% of score) - low impression share reduces score significantly
+        # Impression share (30% of score) - higher is better
+        max_impression_share = filtered_df['impression_share'].max()
         if max_impression_share > 0:
-            impression_share_ratio = row['impression_share'] / max_impression_share
-            # Heavy penalty for very low impression share
-            if impression_share_ratio < 0.05:  # Less than 5% of max
-                impression_penalty = 0  # Zero points for very low share
-            elif impression_share_ratio < 0.1:  # Less than 10% of max
-                impression_penalty = 25  # Low points
-            elif impression_share_ratio < 0.2:  # Less than 20% of max
-                impression_penalty = 50  # Medium points
-            else:
-                impression_penalty = 100  # Full points for decent share
-            
-            score += impression_penalty * 0.2
+            impression_score = (row['impression_share'] / max_impression_share) * 100
+            score += impression_score * 0.3
         
-        # Asset age protection (10% of score) - newer assets get slight protection
-        if asset_age < 7:  # Less than 1 week old
-            age_bonus = 10
-        elif asset_age < 14:  # Less than 2 weeks old
-            age_bonus = 5
+        # Attributed CTR percentile (15% of score) - use value-based percentile calculation
+        if len(filtered_df) > 1:
+            ctr_percentile = (filtered_df['attributed_ctr'] < row['attributed_ctr']).mean() * 100
         else:
-            age_bonus = 0
+            ctr_percentile = 50  # Default for single row
+        score += ctr_percentile * 0.15
         
-        score += age_bonus * 0.1
+        # Attributed conversions percentile (15% of score) - use value-based percentile calculation
+        if len(filtered_df) > 1:
+            conv_percentile = (filtered_df['attributed_conversions'] < row['attributed_conversions']).mean() * 100
+        else:
+            conv_percentile = 50  # Default for single row
+        score += conv_percentile * 0.15
         
         return min(100, max(0, score))  # Ensure score is between 0-100
     
-    # Add effectiveness score using the reset dataframe with error handling
-    try:
-        effectiveness_scores = []
-        for idx, row in filtered_df_reset.iterrows():
-            try:
-                score = calculate_effectiveness_score(row)
-                effectiveness_scores.append(score)
-            except Exception as e:
-                st.warning(f"Error calculating effectiveness score for asset {idx}: {e}")
-                effectiveness_scores.append(0)  # Default to 0 if error
-        
-        display_df['Effectiveness Score'] = effectiveness_scores
-    except Exception as e:
-        st.error(f"Error calculating effectiveness scores: {e}")
-        # Fallback: create default scores
-        display_df['Effectiveness Score'] = [50.0] * len(display_df)
+    # Add effectiveness score - apply directly to filtered_df without index reset
+    display_df['Effectiveness Score'] = filtered_df.apply(calculate_effectiveness_score, axis=1)
     
     # Add effectiveness score threshold slider
     st.subheader("🎯 Asset Selection Controls")
@@ -870,9 +822,9 @@ def display_performance_analysis():
             "Asset Effectiveness Threshold (%)",
             min_value=0,
             max_value=100,
-            value=30,  # Default to 30% - only select truly poor performers
+            value=30,  # Default to 30% - assets below this are selected
             step=5,
-            help="Assets with effectiveness scores below this threshold will be automatically selected for replacement. Higher scores = better assets that should NOT be replaced."
+            help="Assets with effectiveness scores below this threshold will be automatically selected for replacement"
         )
     
     with col2:
@@ -881,11 +833,8 @@ def display_performance_analysis():
     # Auto-select assets based on threshold
     display_df['Recommended'] = display_df['Effectiveness Score'] < effectiveness_threshold
     
-    # Add asset age for display
-    display_df['Age (Days)'] = filtered_df_reset['asset_age_days'].apply(lambda x: f"{x:.0f}" if x > 0 else "Unknown")
-    
-    # Select final columns including effectiveness score and age
-    final_columns = ['Recommended', 'Asset', 'Label', 'Age (Days)', 'Effectiveness Score', 'Asset Impr', 'Impr Share', 'Attr Clicks', 'Attr Conv', 'Attr CTR', 'Attr Cost', 'Ad Group', 'Ad ID']
+    # Select final columns including effectiveness score
+    final_columns = ['Recommended', 'Asset', 'Label', 'Effectiveness Score', 'Asset Impr', 'Impr Share', 'Attr Clicks', 'Attr Conv', 'Attr CTR', 'Attr Cost', 'Ad Group', 'Ad ID']
     
     # Style the table
     def highlight_performance(row):
@@ -907,14 +856,13 @@ def display_performance_analysis():
         height=500,
         column_config={
             "Recommended": st.column_config.CheckboxColumn(
-                "Selected",
+                "Recommend for Replacement",
                 help="Check to include this asset in replacement recommendations",
                 default=False,
-                width="small"
             ),
             "Effectiveness Score": st.column_config.NumberColumn(
                 "Effectiveness Score (%)",
-                help="Composite score based on Google label and impression data only",
+                help="Composite score based on Google label, impression share, CTR, and conversions",
                 format="%.1f%%"
             )
         },
@@ -927,20 +875,16 @@ def display_performance_analysis():
         filtered_df_reset = filtered_df.reset_index(drop=True)
         edited_df_reset = edited_df.reset_index(drop=True)
         
-        # Map back to original data with selection using proper indexing
+        # Create unique asset identifiers for proper mapping
+        for idx in range(len(filtered_df_reset)):
+            if idx < len(edited_df_reset):
+                filtered_df_reset.loc[idx, 'asset_unique_id'] = f"{filtered_df_reset.loc[idx, 'asset_text']}_{filtered_df_reset.loc[idx, 'asset_type']}_{filtered_df_reset.loc[idx, 'ad_id']}"
+        
+        # Map back to original data with selection
         selected_for_replacement = []
         for idx, row in edited_df_reset.iterrows():
             if row['Recommended'] and idx < len(filtered_df_reset):
                 original_asset = filtered_df_reset.iloc[idx].copy()
-                
-                # Get effectiveness score from the display_df using iloc for safe access
-                effectiveness_score = 0
-                if idx < len(display_df):
-                    try:
-                        effectiveness_score = display_df.iloc[idx]['Effectiveness Score']
-                    except (KeyError, IndexError):
-                        effectiveness_score = 0
-                
                 # Ensure we have all the necessary fields for replacement generation
                 asset_dict = {
                     'asset_text': original_asset.get('asset_text', ''),
@@ -955,7 +899,7 @@ def display_performance_analysis():
                     'ad_id': original_asset.get('ad_id', ''),
                     'ad_name': original_asset.get('ad_name', ''),
                     'impression_share': original_asset.get('impression_share', 0),
-                    'effectiveness_score': effectiveness_score
+                    'effectiveness_score': row.get('Effectiveness Score', 0)
                 }
                 selected_for_replacement.append(asset_dict)
         
