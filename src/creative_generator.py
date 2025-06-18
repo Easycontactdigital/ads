@@ -1332,12 +1332,14 @@ Return only the JSON response, no additional text.
                     "cta_types": ["cta types to avoid"],
                     "messaging_styles": ["messaging styles to avoid"]
                 }},
-                "key_insights": "Main insights about what makes creative effective in this campaign",
-                "creative_recommendations": "Specific recommendations for new creative based on this analysis",
-                "top_performing_examples": {{
-                    "headlines": ["best headline examples"],
-                    "descriptions": ["best description examples"]
-                }}
+                                 "key_insights": "Main insights about what makes creative effective in this campaign",
+                 "creative_recommendations": "Specific recommendations for new creative based on this analysis",
+                 "top_performing_examples": {{
+                     "headlines": ["best headline examples"],
+                     "descriptions": ["best description examples"]
+                 }},
+                 "suggested_target_audience": "Suggested target audience description for new creative generation",
+                 "suggested_brief": "Suggested additional context/brief for new creative generation"
             }}
             """
             
